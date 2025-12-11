@@ -1,0 +1,59 @@
+[server]
+bind_address = "0.0.0.0"
+port = 5000
+
+[auth]
+jwt_secret = "your-secret-key-change-this-in-production"
+
+[cache]
+directory = "/var/cache/docker-registry-proxy"
+max_size_bytes = 10737418240                   # 10 GB
+max_age_seconds = 604800                       # 7 days
+
+# Define upstream registries
+[[registries]]
+id = "dockerhub"
+url = "https://registry-1.docker.io"
+
+[[registries]]
+id = "private-registry"
+url = "https://private-registry.example.com"
+
+[registries.auth]
+username = "registry-user"
+password = "registry-password"
+
+[[registries]]
+id = "gcr"
+url = "https://gcr.io"
+
+# Map local repositories to upstream registries
+[[repositories]]
+name = "alpine"
+registry_id = "dockerhub"
+upstream_name = "library/alpine"
+
+[[repositories]]
+name = "nginx"
+registry_id = "dockerhub"
+upstream_name = "library/nginx"
+
+[[repositories]]
+name = "ubuntu"
+registry_id = "dockerhub"
+upstream_name = "library/ubuntu"
+
+[[repositories]]
+name = "mycompany/app"
+registry_id = "private-registry"
+upstream_name = "team/application"
+
+[[repositories]]
+name = "mycompany/frontend"
+registry_id = "private-registry"
+upstream_name = "team/frontend"
+
+[[repositories]]
+name = "public/gcr-image"
+registry_id = "gcr"
+upstream_name = "my-project/image"

@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  docker-registry-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: docker-registry-proxy
+    restart: unless-stopped
+    ports:
+      - "5000:5000" 
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+      - registry-cache:/var/cache/docker-registry-proxy
+    environment:
+      - CONFIG_PATH=/app/config.toml
+      - RUST_LOG=docker_registry_proxy=info,tower_http=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/v2/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  registry-cache:
+    driver: local

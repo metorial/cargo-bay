@@ -74,7 +74,9 @@ fn extract_token(headers: &HeaderMap) -> Option<String> {
                     .and_then(|credentials| {
                         // credentials format is "username:password"
                         // The password should be the JWT token
-                        credentials.split_once(':').map(|(_, password)| password.to_string())
+                        credentials
+                            .split_once(':')
+                            .map(|(_, password)| password.to_string())
                     })
             } else {
                 None

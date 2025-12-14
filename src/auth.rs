@@ -5,6 +5,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use base64::{engine::general_purpose::STANDARD as base64_engine, Engine as _};
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -44,7 +45,7 @@ pub async fn auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response> {
-    let token = extract_bearer_token(&headers).ok_or_else(|| {
+    let token = extract_token(&headers).ok_or_else(|| {
         ProxyError::Unauthorized("Missing or invalid Authorization header".into())
     })?;
 
@@ -55,13 +56,26 @@ pub async fn auth_middleware(
     Ok(next.run(request).await)
 }
 
-fn extract_bearer_token(headers: &HeaderMap) -> Option<String> {
+fn extract_token(headers: &HeaderMap) -> Option<String> {
     headers
         .get("Authorization")
         .and_then(|value| value.to_str().ok())
         .and_then(|value| {
             if value.starts_with("Bearer ") {
+                // Bearer token authentication
                 Some(value[7..].to_string())
+            } else if value.starts_with("Basic ") {
+                // Basic authentication - decode and extract password (which should be the JWT)
+                let encoded = &value[6..];
+                base64_engine
+                    .decode(encoded)
+                    .ok()
+                    .and_then(|decoded| String::from_utf8(decoded).ok())
+                    .and_then(|credentials| {
+                        // credentials format is "username:password"
+                        // The password should be the JWT token
+                        credentials.split_once(':').map(|(_, password)| password.to_string())
+                    })
             } else {
                 None
             }
@@ -155,5 +169,36 @@ mod tests {
 
         assert!(check_repository_access(&claims, "allowed").is_ok());
         assert!(check_repository_access(&claims, "denied").is_err());
+    }
+
+    #[test]
+    fn test_extract_bearer_token() {
+        use axum::http::HeaderValue;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "Authorization",
+            HeaderValue::from_str("Bearer test-token-123").unwrap(),
+        );
+
+        let token = extract_token(&headers);
+        assert_eq!(token, Some("test-token-123".to_string()));
+    }
+
+    #[test]
+    fn test_extract_basic_auth_token() {
+        use axum::http::HeaderValue;
+        use base64::{engine::general_purpose::STANDARD as base64_engine, Engine as _};
+
+        let mut headers = HeaderMap::new();
+        // Basic auth with username "user" and password "jwt-token-here"
+        let credentials = "user:jwt-token-here";
+        let encoded = base64_engine.encode(credentials);
+        headers.insert(
+            "Authorization",
+            HeaderValue::from_str(&format!("Basic {}", encoded)).unwrap(),
+        );
+
+        let token = extract_token(&headers);
+        assert_eq!(token, Some("jwt-token-here".to_string()));
     }
 }
